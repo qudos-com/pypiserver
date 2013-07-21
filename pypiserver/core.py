@@ -53,6 +53,14 @@ def guess_pkgname_and_version(path):
     return pkgname, version
 
 
+def get_possible_pkgnames_and_version(path):
+    path = os.path.basename(path)
+    for mo in re.finditer(r"-\d+", path):
+        pkgname = path[:mo.start()]
+        version = _archive_suffix_rx.sub("", path[len(pkgname) + 1:])
+        yield pkgname, version
+
+
 def normalize_pkgname(name):
     return name.lower().replace("-", "_")
 
@@ -80,11 +88,11 @@ def listdir(root):
             fn = os.path.join(root, dirpath, x)
             if not is_allowed_path(x) or not os.path.isfile(fn):
                 continue
-            pkgname, version = guess_pkgname_and_version(x)
-            yield pkgfile(fn=fn, root=root, relfn=fn[len(root) + 1:],
-                          pkgname=pkgname,
-                          version=version,
-                          parsed_version=parse_version(version))
+            for pkgname, version in get_possible_pkgnames_and_version(x):
+                yield pkgfile(fn=fn, root=root, relfn=fn[len(root) + 1:],
+                              pkgname=pkgname,
+                              version=version,
+                              parsed_version=parse_version(version))
 
 
 def find_packages(pkgs, prefix=""):
