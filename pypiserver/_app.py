@@ -32,6 +32,16 @@ def validate_user(username, password):
         return config.htpasswdfile.check_password(username, password)
 
 
+def require_user(f):
+    """Simple decorator for checking user auth"""
+    def inner(*args, **kwargs):
+        if not request.auth or request.auth[1] is None \
+                or not validate_user(*request.auth):
+            raise HTTPError(401, header={"WWW-Authenticate": 'Basic realm="pypi"'})
+        return f(*args, **kwargs)
+    return inner
+
+
 def configure(root=None,
               redirect_to_fallback=True,
               fallback_url=None,
@@ -72,11 +82,13 @@ app = Bottle()
 
 
 @app.route("/favicon.ico")
+@require_user
 def favicon():
     return HTTPError(404)
 
 
 @app.route('/')
+@require_user
 def root():
     fp = request.fullpath
 
@@ -109,13 +121,8 @@ easy_install -i %(URL)ssimple/ PACKAGE
 
 
 @app.post('/')
+@require_user
 def update():
-    if not request.auth or request.auth[1] is None:
-        raise HTTPError(401, header={"WWW-Authenticate": 'Basic realm="pypi"'})
-
-    if not validate_user(*request.auth):
-        raise HTTPError(403)
-
     try:
         action = request.forms[':action']
     except KeyError:
@@ -171,11 +178,13 @@ def update():
 
 
 @app.route("/simple")
+@require_user
 def simpleindex_redirect():
     return redirect(request.fullpath + "/")
 
 
 @app.route("/simple/")
+@require_user
 def simpleindex():
     res = ["<html><head><title>Simple Index</title></head><body>\n"]
     for x in sorted(get_prefixes(packages())):
@@ -186,6 +195,7 @@ def simpleindex():
 
 @app.route("/simple/:prefix")
 @app.route("/simple/:prefix/")
+@require_user
 def simple(prefix=""):
     fp = request.fullpath
     if not fp.endswith("/"):
@@ -209,6 +219,7 @@ def simple(prefix=""):
 
 @app.route('/packages')
 @app.route('/packages/')
+@require_user
 def list_packages():
     fp = request.fullpath
     if not fp.endswith("/"):
@@ -225,6 +236,7 @@ def list_packages():
 
 
 @app.route('/packages/:filename#.*#')
+@require_user
 def server_static(filename):
     entries = find_packages(packages())
     for x in entries:
@@ -237,6 +249,7 @@ def server_static(filename):
 
 @app.route('/:prefix')
 @app.route('/:prefix/')
+@require_user
 def bad_url(prefix):
     p = request.fullpath
     if p.endswith("/"):
